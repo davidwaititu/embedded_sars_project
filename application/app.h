@@ -1,8 +1,4 @@
-/**
- * @file application.h
- * @brief Application main header.
- * @author Abigael Chemutai
- */
+
 #ifndef APP_MAIN_H_
 #define APP_MAIN_H_
 
@@ -16,3 +12,6 @@
 int app_main(void);
 
 #endif /* APP_MAIN_H_ */
+
+
+
