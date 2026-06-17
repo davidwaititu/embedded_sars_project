@@ -54,7 +54,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
      ${CMAKE_CURRENT_SOURCE_DIR}/Middlewares/Third_Party/FreeRTOS/Source/
-    ${CMAKE_CURRENT_SOURCE_DIR}/applications/
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/
     ${CMAKE_CURRENT_SOURCE_DIR}/c
 )
 

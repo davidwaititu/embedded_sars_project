@@ -1,5 +1,5 @@
 /**
- * @file application.h
+ * @file app.h
  * @brief Application main header.
  * @author Philipp Schilk, 2024
  */
