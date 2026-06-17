@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+ #include "app.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -129,7 +130,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
-
+   
   /* Init scheduler */
   osKernelInitialize();
 
@@ -143,6 +144,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
+   int err = app_main();
+  UNUSED(err);
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
