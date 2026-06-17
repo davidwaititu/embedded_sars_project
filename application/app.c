@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-#include "main.h"
-=======
  #include "main.h"
  #include "stts22h_driver.h"
  #include <stdio.h>
@@ -242,4 +239,3 @@ HAL_GPIO_TogglePin(LED_1_GPIO_Port, LED_1_Pin); // toggle LED to indicate DMA is
 
 
 
->>>>>>> origin/abigael
