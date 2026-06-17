@@ -1,42 +1,48 @@
-
-
-/**
- * @file app_main.c
- * @brief Application entry point.
- * @author Philipp Schilk, 2024
- */
-
-#include "app.h"
-
-#include "main.h"
-
+ #include "main.h"
+ #include "stts22h_driver.h"
+ #include <stdio.h>
+ #include "app.h"
+ #include "cmsis_os.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include <stdio.h>
 #include "queue.h"
-#include <stdint.h>
 
-// ==== Static Variables =======================================================
+extern ADC_HandleTypeDef hadc1;
 
-#define STACK_SIZE_TASK3 128
-#define STACK_SIZE_TASK6 512
-#define STACK_SIZE_TASK9 1024
-#define MIC_BUFFER_SIZE 128
+extern DFSDM_Filter_HandleTypeDef hdfsdm1_filter0;
+extern DFSDM_Channel_HandleTypeDef hdfsdm1_channel4;
+extern DMA_HandleTypeDef hdma_dfsdm1_flt0;
 
-// ==== External Variables =======================================================
-extern DFSDM_Filter_HandleTypeDef hdfsdm1_filter0; // microphone filter handle, used in task 3 to read microphone data
-extern DFSDM_Channel_HandleTypeDef hdfsdm1_channel4; // microphone channel handle, used in task 3 to read microphone data
-extern DMA_HandleTypeDef hdma_dfsdm1_flt0; // microphone DMA handle, used in task 3 to read microphone data
-extern UART_HandleTypeDef huart2; // UART handle, used in task 3 to print microphone data
-extern SPI_HandleTypeDef hspi2; // SPI handle, used in task 6 to drive the 74HC595 shift registers for the VU meter
+extern I2C_HandleTypeDef hi2c1;
+
+extern SPI_HandleTypeDef hspi2;
+
+extern TIM_HandleTypeDef htim3;
+
+extern UART_HandleTypeDef huart2;
+extern UART_HandleTypeDef huart3;
 
 extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is done
 
 
+  int _write(int file, char *ptr, int len)
+  {
+    HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 5000);
+    return len;
+  }
+  
+  #define STACK_SIZE_Task4 1024
+  #define STACK_SIZE_TASK3 128
+#define STACK_SIZE_TASK6 512
+#define STACK_SIZE_TASK9 1024
+#define MIC_BUFFER_SIZE 128
 
+  // Temperature reading
+    TaskHandle_t task4 = 0;              // Task handle.
+    StaticTask_t task4_tcb = {0};        // Task tcb.
+    StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
 
-
-TaskHandle_t task3 = 0;              // Task handle.
+    TaskHandle_t task3 = 0;              // Task handle.
 StaticTask_t task3_tcb = {0};        // Task tcb.
 StackType_t task3_stack[STACK_SIZE_TASK3]; // Task stack.
 
@@ -51,16 +57,14 @@ StaticTask_t task9_tcb = {0};        // Task tcb.
 StackType_t task9_stack[STACK_SIZE_TASK9]; // Task stack.
 
 
-
 int32_t mic_buffer[MIC_BUFFER_SIZE]; // buffer to store microphone data, used in task 3 to read microphone data
 QueueHandle_t soundLevelQueue; // queue to store microphone data, used in task 3 to read microphone data and task 6 to display VU meter
-
 
 
 // ==== Task 3 ======================================================================
 // Read from the MP34DT05-A microphone using PDM, pocess data and print the result in serial
 
-void task3_entry(void *args){
+void task3_entry(void *pvParameters){
     // start DMA
     HAL_StatusTypeDef status = HAL_DFSDM_FilterRegularStart_DMA(&hdfsdm1_filter0, mic_buffer, MIC_BUFFER_SIZE);
   if (status != HAL_OK) {
@@ -94,7 +98,7 @@ void task3_entry(void *args){
         // send to queue for Task 6 and Task 9
         xQueueSend(soundLevelQueue, &current_level, 0);
 
-        // printf("Raw Data: %ld\r\n", mic_buffer[0]);
+        printf("Raw Data: %ld\r\n", mic_buffer[0]);
         printf("Sound level: %ld\r\n", current_level);
 
         // delay
@@ -103,72 +107,60 @@ void task3_entry(void *args){
 
 }
 
+//TASK 4: TEMPERATURE READINGS
+  void task4_entry(void *args)
+{
+    UNUSED(args);
+
+    printf("Temperature task started\r\n");
+
+    // Check communication
+    if (stts22h_check_communication() != STTS22H_OK)
+    {
+        printf("STTS22H communication failed\r\n");
+        vTaskDelete(NULL);
+    }
+
+    printf("STTS22H connected\r\n");
 
 
+    // Set sensor to continuous mode
+    if (stts22h_configure(STTS22H_MODE_FREERUN_50HZ) != STTS22H_OK)
+    {
+        printf("Freerun configuration failed\r\n");
+        vTaskDelete(NULL);
+    }
+
+    printf("Freerun mode enabled\r\n");
 
 
+    while(1)
+    {
+        int16_t temp_centidegree = 0;
+
+
+        if(stts22h_read_temp(&temp_centidegree) == STTS22H_OK)
+        {
+            float temp = temp_centidegree / 100.0f;
+
+            printf("Temperature: %.2f °C\r\n", temp);
+        }
+        else
+        {
+            printf("Temperature read error\r\n");
+        }
+
+
+        // Task sleeps for 1 second
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
+}
 
 // ==== Task 6 =================================================================
 // Using the 12 matrix display real time VU meter of the microphone input using data in task 3
 // the VU meter show level green, yellow and red for low, medium and high sound levels respectively. The VU meter should update at least 10 times per second.
 // used SPI, Drives the 74HC595 shift registers to display 
 
-void task6_entry(void *args){
-    int32_t current_level= 0;
-    // Thresholds for the 12 LEDs based on your microphone data peaks
-    const int32_t thresholds[12] = {
-        500, 1500, 3000, 5000,       // Green zone (Low)
-        8000, 12000, 17000, 24000,   // Yellow zone (Medium)
-        32000, 42000, 52000, 60000   // Red zone (High)
-    };
-
-    const volatile uint8_t green_bits[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-    const volatile uint8_t red_bits[12]   = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
-
-    while(1) {
-        // Wait for new sound data (Timeout of 100ms guarantees 10Hz minimum update rate)
-        if (xQueueReceive(soundLevelQueue, &current_level, pdMS_TO_TICKS(100)) == pdPASS) {
-            
-            uint32_t matrix_data = 0; // 24-bit payload
-            
-            // 1. Determine which LEDs should be on
-            for (int i = 0; i < 12; i++) {
-                if (current_level >= thresholds[i]) {
-                    
-                    // LEDs 0-3: Green
-                    if (i < 4) {
-                        matrix_data |= (1 << green_bits[i]);
-                    }
-                    // LEDs 4-7: Yellow (Green + Red)
-                    else if (i < 8) {
-                        matrix_data |= (1 << green_bits[i]);
-                        matrix_data |= (1 << red_bits[i]);
-                    }
-                    // LEDs 8-11: Red
-                    else {
-                        matrix_data |= (1 << red_bits[i]);
-                    }
-                }
-            }
-            
-            // 2. Break the 24-bit payload into 3 bytes for SPI transmission
-            // SR3 receives the first byte, SR1 receives the last byte
-            volatile uint8_t spi_payload[3];
-            spi_payload[0] = (matrix_data >> 16) & 0xFF; // SR3 Data
-            spi_payload[1] = (matrix_data >> 8) & 0xFF;  // SR2 Data
-            spi_payload[2] = matrix_data & 0xFF;         // SR1 Data
-            
-            // 3. Transmit via SPI
-            HAL_SPI_Transmit(&hspi2, spi_payload, 3, HAL_MAX_DELAY);
-            
-            // 4. Latch the shift registers to display the LEDs (Toggle PC7)
-            HAL_GPIO_WritePin(MATRIX_RCK_GPIO_Port, MATRIX_RCK_Pin, GPIO_PIN_SET);
-            // Brief delay for the latch to register (often not needed at STM32 speeds, but safe)
-            for(volatile int d=0; d<100; d++); 
-            HAL_GPIO_WritePin(MATRIX_RCK_GPIO_Port, MATRIX_RCK_Pin, GPIO_PIN_RESET);
-        }
-    }
-}
 
 
 
@@ -181,16 +173,11 @@ void task6_entry(void *args){
 
 
 
-
-/**
- * @brief Application Entry Point.
- *
- * Initializes all RTOS resources & starts the scheduler. If this is done successfully,
- * it never returns and hands control to FreeRTOS. If initialization fails, it returns
- * an error code.
- */
+  
 int app_main(void) {
-    soundLevelQueue = xQueueCreate(1, sizeof(int32_t)); // create queue to store microphone data
+
+
+     soundLevelQueue = xQueueCreate(1, sizeof(int32_t)); // create queue to store microphone data
   
 
   // Create task 3:
@@ -204,40 +191,19 @@ int app_main(void) {
     &task3_tcb);
   
 
-  // create task 6:
-  task6 = xTaskCreateStatic(
-    task6_entry, 
-    "Task 6", 
-    STACK_SIZE_TASK6, 
-    NULL, 
-    1, 
-    task6_stack, 
-    &task6_tcb);
+    task4 = xTaskCreateStatic(task4_entry, // Function that implements the task.
+                              "task4",     // Text name for the task.
+                              STACK_SIZE_Task4,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              2,           // Priority at which the task is created.
+                              task4_stack, // Array to use as the task's stack.
+                              &task4_tcb); // Variable to hold the task's TCB.
 
 
-  
+vTaskStartScheduler(); // never returns
+    return 0;
+  }
 
-  // create task 9:
-
-  
-
-
-  // start scheduler:
-  vTaskStartScheduler();
-
-  return 0; // We should never get here.
- 
-
-}
-
-// Callbacks
-
-int _write(int file, char *ptr, int len)
-{
-
-  HAL_UART_Transmit(&huart2, (uint8_t*)ptr, len, HAL_MAX_DELAY);
-  return len;
-}
 
 void HAL_DFSDM_FilterRegConvCpltCallback(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
 {
@@ -251,4 +217,25 @@ HAL_GPIO_TogglePin(LED_1_GPIO_Port, LED_1_Pin); // toggle LED to indicate DMA is
             the HAL_DFSDM_FilterRegConvCpltCallback could be implemented in the user file.
    */
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

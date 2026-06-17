@@ -31,10 +31,12 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
 
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -u _printf_float")
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
     application/app.c
     application/app.h 
+    Core/Src/stts22h_driver.c
     )
 
 # Add STM32CubeMX generated sources
