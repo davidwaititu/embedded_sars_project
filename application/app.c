@@ -30,36 +30,38 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
     HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 5000);
     return len;
   }
-  
+  #define STACK_SIZE_TASK3 1024
   #define STACK_SIZE_Task4 1024
-  #define STACK_SIZE_TASK3 128
-#define STACK_SIZE_TASK6 512
-#define STACK_SIZE_TASK9 1024
-#define MIC_BUFFER_SIZE 128
+  #define STACK_SIZE_TASK6 512
+  #define STACK_SIZE_TASK7 512
+  #define STACK_SIZE_TASK9 1024
+  #define MIC_BUFFER_SIZE 128
 
   // Temperature reading
+    TaskHandle_t task3 = 0;              // Task handle.
+    StaticTask_t task3_tcb = {0};        // Task tcb.
+    StackType_t task3_stack[STACK_SIZE_TASK3]; // Task stack.
+
     TaskHandle_t task4 = 0;              // Task handle.
     StaticTask_t task4_tcb = {0};        // Task tcb.
     StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
 
-    TaskHandle_t task3 = 0;              // Task handle.
-StaticTask_t task3_tcb = {0};        // Task tcb.
-StackType_t task3_stack[STACK_SIZE_TASK3]; // Task stack.
+    TaskHandle_t task6 = 0;              // Task handle.
+    StaticTask_t task6_tcb = {0};        // Task tcb.
+    StackType_t task6_stack[STACK_SIZE_TASK6]; // Task stack.
 
+    TaskHandle_t task7 = 0;              // Task handle.
+    StaticTask_t task7_tcb = {0};        // Task tcb.
+    StackType_t task7_stack[STACK_SIZE_TASK7]; // Task stack.
 
-TaskHandle_t task6 = 0;              // Task handle.
-StaticTask_t task6_tcb = {0};        // Task tcb.
-StackType_t task6_stack[STACK_SIZE_TASK6]; // Task stack.
-
-
-TaskHandle_t task9 = 0;              // Task handle.
-StaticTask_t task9_tcb = {0};        // Task tcb.
-StackType_t task9_stack[STACK_SIZE_TASK9]; // Task stack.
+    TaskHandle_t task9 = 0;              // Task handle.
+    StaticTask_t task9_tcb = {0};        // Task tcb.
+    StackType_t task9_stack[STACK_SIZE_TASK9]; // Task stack.
 
 
 int32_t mic_buffer[MIC_BUFFER_SIZE]; // buffer to store microphone data, used in task 3 to read microphone data
 QueueHandle_t soundLevelQueue; // queue to store microphone data, used in task 3 to read microphone data and task 6 to display VU meter
-
+volatile uint32_t grace_period_ms = 5000;  // default 5 seconds
 
 // ==== Task 3 ======================================================================
 // Read from the MP34DT05-A microphone using PDM, pocess data and print the result in serial
@@ -162,7 +164,42 @@ void task3_entry(void *pvParameters){
 // used SPI, Drives the 74HC595 shift registers to display 
 
 
+// ==== Task 7 =================================================================
+//Adjusting the delay(Grace Period) using the potentiometer
+  void task7_entry(void *args)
+{
+    UNUSED(args);
+    printf("Task 7: Potentiometer + Grace control started\r\n");
 
+    while (1)
+    {
+        uint32_t adc_value = 0;
+
+        // Start ADC
+        HAL_ADC_Start(&hadc1);
+
+        // Wait for conversion
+        if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
+        {
+            adc_value = HAL_ADC_GetValue(&hadc1);
+
+            // Map ADC → grace period (1s to 10s)
+            grace_period_ms = 1000 +
+                ((adc_value * 9000) / 4095);
+
+            printf("ADC: %lu \r\n Grace_Period: %lu ms\r\n",
+                   adc_value,
+                   grace_period_ms);
+        }
+        else
+        {
+            printf("ADC error\r\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+    
+}
 
 
 // ==== Task 9 =================================================================
@@ -198,6 +235,15 @@ int app_main(void) {
                               2,           // Priority at which the task is created.
                               task4_stack, // Array to use as the task's stack.
                               &task4_tcb); // Variable to hold the task's TCB.
+    
+    task7 = xTaskCreateStatic(task7_entry, // Function that implements the task.
+                              "task7",     // Text name for the task.
+                              STACK_SIZE_TASK7,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              2,           // Priority at which the task is created.
+                              task7_stack, // Array to use as the task's stack.
+                              &task7_tcb); // Variable to hold the task's TCB.
+
 
 
 vTaskStartScheduler(); // never returns
