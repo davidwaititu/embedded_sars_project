@@ -33,7 +33,9 @@ enable_language(C ASM)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
-    application/app.c)
+    application/app.c
+    application/app.h 
+    )
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -51,6 +53,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+     ${CMAKE_CURRENT_SOURCE_DIR}/Middlewares/Third_Party/FreeRTOS/Source/
+    ${CMAKE_CURRENT_SOURCE_DIR}/applications/
+    ${CMAKE_CURRENT_SOURCE_DIR}/c
 )
 
 # Add project symbols (macros)

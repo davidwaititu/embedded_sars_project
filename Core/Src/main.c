@@ -127,6 +127,11 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+   // start freeRTOS app
+    int err = app_main();
+  UNUSED(err);
+
+  Error_Handler(); // If app_main returns, there was an error. Handle it.
 
   /* USER CODE END 2 */
 
