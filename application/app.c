@@ -36,13 +36,17 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
 #define STACK_SIZE_TASK6 512
 #define STACK_SIZE_TASK9 1024
 #define MIC_BUFFER_SIZE 128
+#define STACK_SIZE_TASK8 256
+
+uint16_t SOUND = 0;
+uint16_t THRESHOLD = 1000; // threshold for sound detection, can be adjusted based on environment
 
   // Temperature reading
-    TaskHandle_t task4 = 0;              // Task handle.
-    StaticTask_t task4_tcb = {0};        // Task tcb.
-    StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
+TaskHandle_t task4 = 0;              // Task handle.
+StaticTask_t task4_tcb = {0};        // Task tcb.
+StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
 
-    TaskHandle_t task3 = 0;              // Task handle.
+TaskHandle_t task3 = 0;              // Task handle.
 StaticTask_t task3_tcb = {0};        // Task tcb.
 StackType_t task3_stack[STACK_SIZE_TASK3]; // Task stack.
 
@@ -51,6 +55,10 @@ TaskHandle_t task6 = 0;              // Task handle.
 StaticTask_t task6_tcb = {0};        // Task tcb.
 StackType_t task6_stack[STACK_SIZE_TASK6]; // Task stack.
 
+//Servo motor control
+TaskHandle_t task8 = 0;              // Task handle.
+StaticTask_t task8_tcb = {0};        // Task tcb.
+StackType_t task8_stack[STACK_SIZE_TASK8]; // Task stack.
 
 TaskHandle_t task9 = 0;              // Task handle.
 StaticTask_t task9_tcb = {0};        // Task tcb.
@@ -161,8 +169,27 @@ void task3_entry(void *pvParameters){
 // the VU meter show level green, yellow and red for low, medium and high sound levels respectively. The VU meter should update at least 10 times per second.
 // used SPI, Drives the 74HC595 shift registers to display 
 
-
-
+//Task 8: Servo motor control
+void Task8_entry(void* args)// Servo_Motor control dependent on the sound threshold
+{
+  UNUSED(args);
+  
+if(HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3)!=HAL_OK)
+  {
+    Error_Handler();
+  }
+  while (1)
+  {
+    if(SOUND!=THRESHOLD)
+    {
+      htim3.Instance->CCR3 = 1000;  
+    }
+    else 
+    {
+      htim3.Instance->CCR3 = 2000; 
+    }  
+  }
+}
 
 
 // ==== Task 9 =================================================================
