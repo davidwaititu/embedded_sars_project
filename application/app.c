@@ -14,6 +14,7 @@
 #include "task.h"
 #include <stdio.h>
 #include "queue.h"
+#include <stdint.h>
 
 // ==== Static Variables =======================================================
 
@@ -27,6 +28,7 @@ extern DFSDM_Filter_HandleTypeDef hdfsdm1_filter0; // microphone filter handle, 
 extern DFSDM_Channel_HandleTypeDef hdfsdm1_channel4; // microphone channel handle, used in task 3 to read microphone data
 extern DMA_HandleTypeDef hdma_dfsdm1_flt0; // microphone DMA handle, used in task 3 to read microphone data
 extern UART_HandleTypeDef huart2; // UART handle, used in task 3 to print microphone data
+extern SPI_HandleTypeDef hspi2; // SPI handle, used in task 6 to drive the 74HC595 shift registers for the VU meter
 
 extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is done
 
@@ -58,7 +60,7 @@ QueueHandle_t soundLevelQueue; // queue to store microphone data, used in task 3
 // ==== Task 3 ======================================================================
 // Read from the MP34DT05-A microphone using PDM, pocess data and print the result in serial
 
-void task3_entry(void *pvParameters){
+void task3_entry(void *args){
     // start DMA
     HAL_StatusTypeDef status = HAL_DFSDM_FilterRegularStart_DMA(&hdfsdm1_filter0, mic_buffer, MIC_BUFFER_SIZE);
   if (status != HAL_OK) {
@@ -92,7 +94,7 @@ void task3_entry(void *pvParameters){
         // send to queue for Task 6 and Task 9
         xQueueSend(soundLevelQueue, &current_level, 0);
 
-        printf("Raw Data: %ld\r\n", mic_buffer[0]);
+        // printf("Raw Data: %ld\r\n", mic_buffer[0]);
         printf("Sound level: %ld\r\n", current_level);
 
         // delay
@@ -111,6 +113,62 @@ void task3_entry(void *pvParameters){
 // the VU meter show level green, yellow and red for low, medium and high sound levels respectively. The VU meter should update at least 10 times per second.
 // used SPI, Drives the 74HC595 shift registers to display 
 
+void task6_entry(void *args){
+    int32_t current_level= 0;
+    // Thresholds for the 12 LEDs based on your microphone data peaks
+    const int32_t thresholds[12] = {
+        500, 1500, 3000, 5000,       // Green zone (Low)
+        8000, 12000, 17000, 24000,   // Yellow zone (Medium)
+        32000, 42000, 52000, 60000   // Red zone (High)
+    };
+
+    const volatile uint8_t green_bits[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    const volatile uint8_t red_bits[12]   = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+
+    while(1) {
+        // Wait for new sound data (Timeout of 100ms guarantees 10Hz minimum update rate)
+        if (xQueueReceive(soundLevelQueue, &current_level, pdMS_TO_TICKS(100)) == pdPASS) {
+            
+            uint32_t matrix_data = 0; // 24-bit payload
+            
+            // 1. Determine which LEDs should be on
+            for (int i = 0; i < 12; i++) {
+                if (current_level >= thresholds[i]) {
+                    
+                    // LEDs 0-3: Green
+                    if (i < 4) {
+                        matrix_data |= (1 << green_bits[i]);
+                    }
+                    // LEDs 4-7: Yellow (Green + Red)
+                    else if (i < 8) {
+                        matrix_data |= (1 << green_bits[i]);
+                        matrix_data |= (1 << red_bits[i]);
+                    }
+                    // LEDs 8-11: Red
+                    else {
+                        matrix_data |= (1 << red_bits[i]);
+                    }
+                }
+            }
+            
+            // 2. Break the 24-bit payload into 3 bytes for SPI transmission
+            // SR3 receives the first byte, SR1 receives the last byte
+            volatile uint8_t spi_payload[3];
+            spi_payload[0] = (matrix_data >> 16) & 0xFF; // SR3 Data
+            spi_payload[1] = (matrix_data >> 8) & 0xFF;  // SR2 Data
+            spi_payload[2] = matrix_data & 0xFF;         // SR1 Data
+            
+            // 3. Transmit via SPI
+            HAL_SPI_Transmit(&hspi2, spi_payload, 3, HAL_MAX_DELAY);
+            
+            // 4. Latch the shift registers to display the LEDs (Toggle PC7)
+            HAL_GPIO_WritePin(MATRIX_RCK_GPIO_Port, MATRIX_RCK_Pin, GPIO_PIN_SET);
+            // Brief delay for the latch to register (often not needed at STM32 speeds, but safe)
+            for(volatile int d=0; d<100; d++); 
+            HAL_GPIO_WritePin(MATRIX_RCK_GPIO_Port, MATRIX_RCK_Pin, GPIO_PIN_RESET);
+        }
+    }
+}
 
 
 
@@ -147,11 +205,20 @@ int app_main(void) {
   
 
   // create task 6:
+  task6 = xTaskCreateStatic(
+    task6_entry, 
+    "Task 6", 
+    STACK_SIZE_TASK6, 
+    NULL, 
+    1, 
+    task6_stack, 
+    &task6_tcb);
 
 
   
 
   // create task 9:
+
   
 
 
