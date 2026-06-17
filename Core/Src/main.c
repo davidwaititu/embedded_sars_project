@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "app.h"
+#include "stm32l4xx_hal_def.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -130,7 +131,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
    // start freeRTOS app
 
-
+  int err = app_main();
+  UNUSED(err);
   Error_Handler(); // If app_main returns, there was an error. Handle it.
 
   /* USER CODE END 2 */
@@ -144,12 +146,13 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+  app_main();
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
-   int err = app_main();
-  UNUSED(err);
+  // int err = app_main();
+  // UNUSED(err);
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */

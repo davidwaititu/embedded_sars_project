@@ -25,21 +25,17 @@ extern UART_HandleTypeDef huart3;
 extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is done
 
 
-  int _write(int file, char *ptr, int len)
-  {
-    HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 5000);
-    return len;
-  }
+
   
   #define STACK_SIZE_Task4 1024
-  #define STACK_SIZE_TASK3 128
+  #define STACK_SIZE_TASK3 1024
 #define STACK_SIZE_TASK6 512
 #define STACK_SIZE_TASK9 1024
 #define MIC_BUFFER_SIZE 128
-#define STACK_SIZE_TASK8 256
+#define STACK_SIZE_TASK 256
 
 uint16_t SOUND = 0;
-uint16_t THRESHOLD = 1000; // threshold for sound detection, can be adjusted based on environment
+uint16_t THRESHOLD; // threshold for sound detection, can be adjusted based on environment
 
   // Temperature reading
 TaskHandle_t task4 = 0;              // Task handle.
@@ -48,8 +44,8 @@ StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
 
 //mode selection
 TaskHandle_t task2 = 0;              // Task handle.
-StaticTask_t task8_tcb = {0};        // Task tcb.
-StackType_t task8_stack[STACK_SIZE_TASK8]; // Task stack.
+StaticTask_t task2_tcb = {0};        // Task tcb.
+StackType_t task2_stack[STACK_SIZE_TASK]; // Task stack.
 
 
 TaskHandle_t task3 = 0;              // Task handle.
@@ -64,16 +60,57 @@ StackType_t task6_stack[STACK_SIZE_TASK6]; // Task stack.
 //Servo motor control
 TaskHandle_t task8 = 0;              // Task handle.
 StaticTask_t task8_tcb = {0};        // Task tcb.
-StackType_t task8_stack[STACK_SIZE_TASK8]; // Task stack.
+StackType_t task8_stack[STACK_SIZE_TASK]; // Task stack.
 
 TaskHandle_t task9 = 0;              // Task handle.
 StaticTask_t task9_tcb = {0};        // Task tcb.
 StackType_t task9_stack[STACK_SIZE_TASK9]; // Task stack.
 
-
+  int _write(int file, char *ptr, int len)
+  {
+    HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 5000);
+    return len;
+  }
+  
 int32_t mic_buffer[MIC_BUFFER_SIZE]; // buffer to store microphone data, used in task 3 to read microphone data
 QueueHandle_t soundLevelQueue; // queue to store microphone data, used in task 3 to read microphone data and task 6 to display VU meter
 
+//Task 2: Mode selection
+void Task2_entry(void* args)// Servo_Motor control dependent on the sound threshold
+{
+  UNUSED(args);
+    printf("Mode selection \r\n");// should be displayed on the LCD display
+    printf("**************\r\n");
+    printf("1 --> Press UP button:      Public Assembly mode \r\n");
+    printf("2 --> Press RIGHT button:   Commercial Areas mode \r\n");  
+    printf("3 --> Press DOWN button:    Residential Areas mode \r\n");
+    printf("4 --> Press LEFT button:    Educational and Health Institutions mode \r\n");
+while (1)
+  {
+    
+    if(HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET)
+    {
+     THRESHOLD=60; // in dB
+     printf("Public Assembly: Threshold of %d dB\r\n", THRESHOLD);
+    }
+    else if(HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
+    {
+      THRESHOLD=65; // in dB
+      printf("Commercial Areas: Threshold of %d dB\r\n", THRESHOLD);
+    }
+    else if(HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
+    {
+      THRESHOLD=48; // in dB
+      printf("Residential Areas: Threshold of %d dB\r\n", THRESHOLD);
+    }
+    else if(HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET)
+    {
+      THRESHOLD=50; // in dB
+      printf("Educational and HealthInstitutions: Threshold of %d dB\r\n", THRESHOLD);
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to debounce button presses and avoid rapid threshold changes
+  }
+}
 
 // ==== Task 3 ======================================================================
 // Read from the MP34DT05-A microphone using PDM, pocess data and print the result in serial
@@ -186,11 +223,11 @@ if(HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3)!=HAL_OK)
   }
   while (1)
   {
-    if(SOUND!=THRESHOLD)
+    if(SOUND<THRESHOLD)
     {
       htim3.Instance->CCR3 = 1000;  
     }
-    else 
+    else if(SOUND>=THRESHOLD)// add grace period being met
     {
       htim3.Instance->CCR3 = 2000; 
     }  
@@ -211,8 +248,15 @@ int app_main(void) {
 
 
      soundLevelQueue = xQueueCreate(1, sizeof(int32_t)); // create queue to store microphone data
-  
 
+ //mode selection task
+task2 = xTaskCreateStatic(Task2_entry, // Function that implements the task.
+                              "task2",     // Text name for the task.
+                              STACK_SIZE_TASK,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              2,           // Priority at which the task is created.
+                              task2_stack, // Array to use as the task's stack.
+                              &task2_tcb); // Variable to hold the task's TCB.
   // Create task 3:
   task3 = xTaskCreateStatic(
     task3_entry, 
@@ -232,9 +276,10 @@ int app_main(void) {
                               task4_stack, // Array to use as the task's stack.
                               &task4_tcb); // Variable to hold the task's TCB.
 
+ //Servo motor control task                             
 task8 = xTaskCreateStatic(Task8_entry, // Function that implements the task.
                               "task8",     // Text name for the task.
-                              STACK_SIZE_TASK8,  // Number of indexes in the stack array.
+                              STACK_SIZE_TASK,  // Number of indexes in the stack array.
                               0,           // Parameter passed into the task.
                               2,           // Priority at which the task is created.
                               task8_stack, // Array to use as the task's stack.
