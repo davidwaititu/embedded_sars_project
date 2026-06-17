@@ -46,6 +46,12 @@ TaskHandle_t task4 = 0;              // Task handle.
 StaticTask_t task4_tcb = {0};        // Task tcb.
 StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
 
+//mode selection
+TaskHandle_t task2 = 0;              // Task handle.
+StaticTask_t task8_tcb = {0};        // Task tcb.
+StackType_t task8_stack[STACK_SIZE_TASK8]; // Task stack.
+
+
 TaskHandle_t task3 = 0;              // Task handle.
 StaticTask_t task3_tcb = {0};        // Task tcb.
 StackType_t task3_stack[STACK_SIZE_TASK3]; // Task stack.
@@ -226,6 +232,13 @@ int app_main(void) {
                               task4_stack, // Array to use as the task's stack.
                               &task4_tcb); // Variable to hold the task's TCB.
 
+task8 = xTaskCreateStatic(Task8_entry, // Function that implements the task.
+                              "task8",     // Text name for the task.
+                              STACK_SIZE_TASK8,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              2,           // Priority at which the task is created.
+                              task8_stack, // Array to use as the task's stack.
+                              &task8_tcb); // Variable to hold the task's TCB.
 
 vTaskStartScheduler(); // never returns
     return 0;
