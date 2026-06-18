@@ -39,6 +39,7 @@ add_executable(${CMAKE_PROJECT_NAME}
     Core/Src/stts22h_driver.c
     Core/Src/liquidcrystali2c.c
     Core/Inc/liquidcrystali2c.h
+    Core/Src/bluetooth.c
     )
 
 # Add STM32CubeMX generated sources
