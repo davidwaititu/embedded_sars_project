@@ -1,4 +1,6 @@
- #include "main.h"
+ #include "bluetooth.h"
+#include "main.h"
+#include "projdefs.h"
  #include "stts22h_driver.h"
  #include <stdio.h>
  #include "app.h"
@@ -30,36 +32,43 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
     HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 5000);
     return len;
   }
-  
+  #define STACK_SIZE_TASK3 1024
   #define STACK_SIZE_Task4 1024
-  #define STACK_SIZE_TASK3 128
-#define STACK_SIZE_TASK6 512
-#define STACK_SIZE_TASK9 1024
-#define MIC_BUFFER_SIZE 128
+  #define STACK_SIZE_TASK6 512
+  #define STACK_SIZE_TASK7 512
+  #define STACK_SIZE_TASK9 1024
+  #define STACK_SIZE_TASK10 512
+  #define MIC_BUFFER_SIZE 128
 
   // Temperature reading
+    TaskHandle_t task3 = 0;              // Task handle.
+    StaticTask_t task3_tcb = {0};        // Task tcb.
+    StackType_t task3_stack[STACK_SIZE_TASK3]; // Task stack.
+
     TaskHandle_t task4 = 0;              // Task handle.
     StaticTask_t task4_tcb = {0};        // Task tcb.
     StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
 
-    TaskHandle_t task3 = 0;              // Task handle.
-StaticTask_t task3_tcb = {0};        // Task tcb.
-StackType_t task3_stack[STACK_SIZE_TASK3]; // Task stack.
+    TaskHandle_t task6 = 0;              // Task handle.
+    StaticTask_t task6_tcb = {0};        // Task tcb.
+    StackType_t task6_stack[STACK_SIZE_TASK6]; // Task stack.
 
+    TaskHandle_t task7 = 0;              // Task handle.
+    StaticTask_t task7_tcb = {0};        // Task tcb.
+    StackType_t task7_stack[STACK_SIZE_TASK7]; // Task stack.
 
-TaskHandle_t task6 = 0;              // Task handle.
-StaticTask_t task6_tcb = {0};        // Task tcb.
-StackType_t task6_stack[STACK_SIZE_TASK6]; // Task stack.
+    TaskHandle_t task9 = 0;              // Task handle.
+    StaticTask_t task9_tcb = {0};        // Task tcb.
+    StackType_t task9_stack[STACK_SIZE_TASK9]; // Task stack.
 
-
-TaskHandle_t task9 = 0;              // Task handle.
-StaticTask_t task9_tcb = {0};        // Task tcb.
-StackType_t task9_stack[STACK_SIZE_TASK9]; // Task stack.
+      TaskHandle_t task10 = 0;              // Task handle.
+    StaticTask_t task10_tcb = {0};        // Task tcb.
+    StackType_t task10_stack[STACK_SIZE_TASK10]; // Task stack.
 
 
 int32_t mic_buffer[MIC_BUFFER_SIZE]; // buffer to store microphone data, used in task 3 to read microphone data
 QueueHandle_t soundLevelQueue; // queue to store microphone data, used in task 3 to read microphone data and task 6 to display VU meter
-
+volatile uint32_t grace_period_ms = 5000;  // default 5 seconds
 
 // ==== Task 3 ======================================================================
 // Read from the MP34DT05-A microphone using PDM, pocess data and print the result in serial
@@ -98,12 +107,8 @@ void task3_entry(void *pvParameters){
         // send to queue for Task 6 and Task 9
         xQueueSend(soundLevelQueue, &current_level, 0);
 
-        // simple moving average filter for smoothing the sound level
-        static int32_t smoothed_level = 0;
-        smoothed_level = (smoothed_level * 7 + current_level) / 8; // smoothing factor of 8
-
-
-        printf("Sound level: %ld\r\n", smoothed_level);
+        printf("Raw Data: %ld\r\n", mic_buffer[0]);
+        printf("Sound level: %ld\r\n", current_level);
 
         // delay
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -165,67 +170,56 @@ void task3_entry(void *pvParameters){
 // the VU meter show level green, yellow and red for low, medium and high sound levels respectively. The VU meter should update at least 10 times per second.
 // used SPI, Drives the 74HC595 shift registers to display 
 
-void task6_entry(void *args){
-    int32_t current_level= 0;
-    // Thresholds for the 12 LEDs based on your microphone data peaks
-    const int32_t thresholds[12] = {
-        500, 1500, 3000, 5000,       // Green zone (Low)
-        8000, 12000, 17000, 24000,   // Yellow zone (Medium)
-        32000, 42000, 52000, 60000   // Red zone (High)
-    };
 
-    const volatile uint8_t green_bits[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-    const volatile uint8_t red_bits[12]   = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+// ==== Task 7 =================================================================
+//Adjusting the delay(Grace Period) using the potentiometer
+  void task7_entry(void *args)
+{
+    UNUSED(args);
+    printf("Task 7: Potentiometer + Grace control started\r\n");
 
-    while(1) {
-        // Wait for new sound data (Timeout of 100ms guarantees 10Hz minimum update rate)
-        if (xQueueReceive(soundLevelQueue, &current_level, pdMS_TO_TICKS(100)) == pdPASS) {
-            
-            uint32_t matrix_data = 0; // 24-bit payload
-            
-            // 1. Determine which LEDs should be on
-            for (int i = 0; i < 12; i++) {
-                if (current_level >= thresholds[i]) {
-                    
-                    // LEDs 0-3: Green
-                    if (i < 4) {
-                        matrix_data |= (1 << green_bits[i]);
-                    }
-                    // LEDs 4-7: Yellow (Green + Red)
-                    else if (i < 8) {
-                        matrix_data |= (1 << green_bits[i]);
-                        matrix_data |= (1 << red_bits[i]);
-                    }
-                    // LEDs 8-11: Red
-                    else {
-                        matrix_data |= (1 << red_bits[i]);
-                    }
-                }
-            }
-            
-            // 2. Break the 24-bit payload into 3 bytes for SPI transmission
-            // SR3 receives the first byte, SR1 receives the last byte
-             uint8_t spi_payload[3];
-            spi_payload[0] = (matrix_data >> 16) & 0xFF; // SR3 Data
-            spi_payload[1] = (matrix_data >> 8) & 0xFF;  // SR2 Data
-            spi_payload[2] = matrix_data & 0xFF;         // SR1 Data
-            
-            // 3. Transmit via SPI
-            HAL_SPI_Transmit(&hspi2, spi_payload, 3, HAL_MAX_DELAY);
-            
-            // 4. Latch the shift registers to display the LEDs (Toggle PC7)
-            HAL_GPIO_WritePin(MATRIX_RCK_GPIO_Port, MATRIX_RCK_Pin, GPIO_PIN_SET);
-            // Brief delay for the latch to register (often not needed at STM32 speeds, but safe)
-            for(volatile int d=0; d<100; d++); 
-            HAL_GPIO_WritePin(MATRIX_RCK_GPIO_Port, MATRIX_RCK_Pin, GPIO_PIN_RESET);
+    while (1)
+    {
+        uint32_t adc_value = 0;
+
+        // Start ADC
+        HAL_ADC_Start(&hadc1);
+
+        // Wait for conversion
+        if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
+        {
+            adc_value = HAL_ADC_GetValue(&hadc1);
+
+            // Map ADC → grace period (1s to 10s)
+            grace_period_ms = 1000 +
+                ((adc_value * 9000) / 4095);
+
+            printf("ADC: %lu \r\n Grace_Period: %lu ms\r\n",
+                   adc_value,
+                   grace_period_ms);
         }
+        else
+        {
+            printf("ADC error\r\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
+    
 }
 
+ void task10_entry(void *args)
+{
+    
 
-
-
-
+    while (1)
+    {
+        BT_SendString("Hey \n");
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        
+    
+}
 // ==== Task 9 =================================================================
 // Power managemnt: Put the microcontroller in sleep mode when there is no sound input for more than 5 seconds. 
 // Wake up the microcontroller when sound is detected again. 
@@ -259,15 +253,21 @@ int app_main(void) {
                               2,           // Priority at which the task is created.
                               task4_stack, // Array to use as the task's stack.
                               &task4_tcb); // Variable to hold the task's TCB.
-
-task6 = xTaskCreateStatic(task6_entry, // Function that implements the task.
-                              "task6",     // Text name for the task.
-                              STACK_SIZE_TASK6,  // Number of indexes in the stack array.
+    
+    task7 = xTaskCreateStatic(task7_entry, // Function that implements the task.
+                              "task7",     // Text name for the task.
+                              STACK_SIZE_TASK7,  // Number of indexes in the stack array.
                               0,           // Parameter passed into the task.
                               2,           // Priority at which the task is created.
-                              task6_stack, // Array to use as the task's stack.
-                              &task6_tcb); // Variable to hold the task's TCB.
-
+                              task7_stack, // Array to use as the task's stack.
+                              &task7_tcb); // Variable to hold the task's TCB.
+    task10 = xTaskCreateStatic(task10_entry, // Function that implements the task.
+                              "task10",     // Text name for the task.
+                              STACK_SIZE_TASK10,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              2,           // Priority at which the task is created.
+                              task10_stack, // Array to use as the task's stack.
+                              &task10_tcb); // Variable to hold the task's TCB.
 
 
 
@@ -278,7 +278,7 @@ vTaskStartScheduler(); // never returns
 
 void HAL_DFSDM_FilterRegConvCpltCallback(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
 {
-// HAL_GPIO_TogglePin(LED_1_GPIO_Port, LED_1_Pin); // toggle LED to indicate DMA is done
+HAL_GPIO_TogglePin(LED_1_GPIO_Port, LED_1_Pin); // toggle LED to indicate DMA is done
     
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     vTaskNotifyGiveFromISR(task3, &xHigherPriorityTaskWoken);
