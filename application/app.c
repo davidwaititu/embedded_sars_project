@@ -1,4 +1,6 @@
- #include "main.h"
+ #include "bluetooth.h"
+#include "main.h"
+#include "projdefs.h"
  #include "stts22h_driver.h"
  #include <stdio.h>
  #include "app.h"
@@ -35,6 +37,7 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
   #define STACK_SIZE_TASK6 512
   #define STACK_SIZE_TASK7 512
   #define STACK_SIZE_TASK9 1024
+  #define STACK_SIZE_TASK10 512
   #define MIC_BUFFER_SIZE 128
 
   // Temperature reading
@@ -57,6 +60,10 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
     TaskHandle_t task9 = 0;              // Task handle.
     StaticTask_t task9_tcb = {0};        // Task tcb.
     StackType_t task9_stack[STACK_SIZE_TASK9]; // Task stack.
+
+      TaskHandle_t task10 = 0;              // Task handle.
+    StaticTask_t task10_tcb = {0};        // Task tcb.
+    StackType_t task10_stack[STACK_SIZE_TASK10]; // Task stack.
 
 
 int32_t mic_buffer[MIC_BUFFER_SIZE]; // buffer to store microphone data, used in task 3 to read microphone data
@@ -201,7 +208,18 @@ void task3_entry(void *pvParameters){
     
 }
 
+ void task10_entry(void *args)
+{
+    
 
+    while (1)
+    {
+        BT_SendString("Hey \n");
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        
+    
+}
 // ==== Task 9 =================================================================
 // Power managemnt: Put the microcontroller in sleep mode when there is no sound input for more than 5 seconds. 
 // Wake up the microcontroller when sound is detected again. 
@@ -243,6 +261,13 @@ int app_main(void) {
                               2,           // Priority at which the task is created.
                               task7_stack, // Array to use as the task's stack.
                               &task7_tcb); // Variable to hold the task's TCB.
+    task10 = xTaskCreateStatic(task10_entry, // Function that implements the task.
+                              "task10",     // Text name for the task.
+                              STACK_SIZE_TASK10,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              2,           // Priority at which the task is created.
+                              task10_stack, // Array to use as the task's stack.
+                              &task10_tcb); // Variable to hold the task's TCB.
 
 
 

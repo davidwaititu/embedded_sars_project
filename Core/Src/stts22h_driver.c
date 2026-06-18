@@ -14,13 +14,10 @@ extern I2C_HandleTypeDef hi2c1;
 STTS22H_Status stts22h_check_communication(void) {
   uint8_t whoami = 0;
 
-  // TODO 1: Read "WHOAMI" register:
-  // HINT : The STM32 HAL I2C functions expect the I2C address in 8-bit format. (addr_8bit = addr_7bit << 1)
-  if (HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_WHOAMI, I2C_MEMADD_SIZE_8BIT, &whoami, 1, 20) != HAL_OK) {
+   if (HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_WHOAMI, I2C_MEMADD_SIZE_8BIT, &whoami, 1, 20) != HAL_OK) {
     return STTS22H_ERROR;
   }
 
-  // TODO 2: Check if whoami contains the expected value:
   if(whoami== STTS22H_REG_WHOAMI_VALUE){
     return STTS22H_OK;
   } else {
@@ -46,7 +43,7 @@ STTS22H_Status stts22h_configure(STTS22H_Mode mode) {
   //         2) Make the desired modifications to that variable.
   //         3) Write the new register value back to the register via I2C.
 
-  // TODO 1: Read current "CTRL" register:
+  // Read current "CTRL" register:
   uint8_t reg_ctrl = 0;
 HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_CTRL, I2C_MEMADD_SIZE_8BIT, &reg_ctrl, 1, 20);
   // === Step 1: Power-down the sensor ===
@@ -55,15 +52,15 @@ HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_CTRL, I2C_MEMADD_SIZ
   //   Before changing the operating mode or ODR frequency, the user has to power down the device by writing 0 to
   //   both the FREERUN and LOW_ODR_START bits.
 
-  // TODO 2: Set FREERUN to 0:
+  // TO Set FREERUN to 0:
   //uint8_t FREERUN = 0; or
   reg_ctrl &= ~(0x01 <<2);
 
-  // TODO 3: Set LOW_ODR_START to 0:
+  // TO Set LOW_ODR_START to 0:
   //uint8_t LOW_ODR_START = 0; or
   reg_ctrl &= ~(0x01 <<7);
 
-  // TODO 4: Write the new CTRL register value to sensor to apply it:
+  // TO Write the new CTRL register value to sensor to apply it:
   // HINT : The STM32 HAL I2C functions expect the I2C address in 8-bit format. (addr_8bit = addr_7bit << 1)
   if (HAL_I2C_Mem_Write(&hi2c1,STTS22H_I2C_ADDR_7B<<1 , STTS22H_REG_CTRL, I2C_MEMADD_SIZE_8BIT, &reg_ctrl, 1, 20) != HAL_OK) {
     return STTS22H_ERROR;
@@ -79,14 +76,13 @@ HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_CTRL, I2C_MEMADD_SIZ
   // LOW_ODR_START: If the low-odr (1Hz) mode was requested, the LOW_ODR_START bit
   //                must be set to 1. Otherwise it should be set to 0.
   if (mode == STTS22H_MODE_LOW_ODR_1HZ) {
-    // TODO 5: Set LOW_ODR_START bit to 1:
+    // TO Set LOW_ODR_START bit to 1:
     reg_ctrl |= (0x1 << 7);
   } else {
-    // TODO 6: Set LOW_ODR_START bit to 0:
+    // TO Set LOW_ODR_START bit to 0:
     reg_ctrl &= ~(0x1 << 7);
   }
 
-  // TODO 7:
   // FREERUN: If the freerun mode was requested (no matter what ouput rate),
   //          the FREERUN bit should be set to 1. Otherwise it should be set to 0.
   // HINT:    The freerun mode was requested if mode is set to any of the following:
@@ -104,7 +100,7 @@ HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_CTRL, I2C_MEMADD_SIZ
     reg_ctrl &= ~(0x1 << 2);
   }
 
-  // TODO 8:
+ 
   // AVG:  If the freerunn mode was requested, we must set the AVG field to
   //       configure the correct output data rate. In all other modes the
   //       AVG field's value does not matter.
@@ -129,7 +125,7 @@ HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_CTRL, I2C_MEMADD_SIZ
   reg_ctrl |= (0x1 << 6);
   reg_ctrl |= (0x1 << 3);
 
-  // TODO 9: Write to sensor to apply:
+  // TO Write to sensor to apply:
   if(HAL_I2C_Mem_Write(&hi2c1, STTS22H_I2C_ADDR_7B<<1 , STTS22H_REG_CTRL, I2C_MEMADD_SIZE_8BIT, &reg_ctrl, 1, 20) != HAL_OK) {
     return STTS22H_ERROR;
   }
@@ -144,7 +140,7 @@ HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_CTRL, I2C_MEMADD_SIZ
  * @return
  */
 STTS22H_Status stts22h_read_temp(int16_t *temp_centidegree) {
-  // TODO 1: Read "TEMP_H_OUT and TEMP_L_OUT" register:
+  // TO Read "TEMP_H_OUT and TEMP_L_OUT" register:
   // HINT:   You can read sequential register with a single I2C read.
   uint8_t temp_out[2] = {0};
  if(HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_TEMP_L_OUT, I2C_MEMADD_SIZE_8BIT, temp_out, 2, 20)!=HAL_OK){
@@ -152,7 +148,7 @@ STTS22H_Status stts22h_read_temp(int16_t *temp_centidegree) {
   }
   
 
-  // TODO 2: Construct temp_centidegree from TEMP_H_OUT and TEMP_L_OUT registers:
+  // TO Construct temp_centidegree from TEMP_H_OUT and TEMP_L_OUT registers:
   *temp_centidegree = 0;
 
  // Construct temp_centidegree properly by casting to int16_t first
@@ -168,25 +164,25 @@ STTS22H_Status stts22h_read_temp(int16_t *temp_centidegree) {
  * @return STTS22H_OK if a measurement was be triggered, STTS22H_ERROR otherwise.
  */
 STTS22H_Status stts22h_trigger_oneshot(void) {
-  // TODO 1: Read current "CTRL" register:
+  // TO Read current "CTRL" register:
   uint8_t reg_ctrl = 0;
   if(HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_CTRL, I2C_MEMADD_SIZE_8BIT, &reg_ctrl, 1, 20) != HAL_OK) {
     return STTS22H_ERROR;
   }
 
-  // TODO 2: Check if we are in one-shot mode (LOW_ODR_START == 0 and FREERUN == 0)-
+  // TO Check if we are in one-shot mode (LOW_ODR_START == 0 and FREERUN == 0)-
   //         If not, return an error.
-  uint8_t low_odr_start = (reg_ctrl >> 7) & 0x01;
-  uint8_t freerun = (reg_ctrl >> 2) & 0x01;
+  //uint8_t low_odr_start = (reg_ctrl >> 7) & 0x01;
+  //uint8_t freerun = (reg_ctrl >> 2) & 0x01;
   
 //   if(low_odr_start !=0 || freerun != 0){
 //   return STTS22H_ERROR;
 //  }
  
-  // TODO 3: Set "ONESHOT" bit to 1:
+  // TO Set "ONESHOT" bit to 1:
   reg_ctrl |= (0x01 << 0);
 
-  // TODO 4: Write new CTRL register value to sensor to apply it:
+  // TO Write new CTRL register value to sensor to apply it:
   if(HAL_I2C_Mem_Write(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_CTRL, I2C_MEMADD_SIZE_8BIT, &reg_ctrl, 1, 20) != HAL_OK) {
     return STTS22H_ERROR;
   }
@@ -201,13 +197,13 @@ STTS22H_Status stts22h_trigger_oneshot(void) {
  * @return
  */
 STTS22H_Status stts22h_check_is_busy(bool *is_busy) {
-  // TODO 1: Read current "STATUS" register:
+  // TO Read current "STATUS" register:
   uint8_t reg_status = 0;
   if(HAL_I2C_Mem_Read(&hi2c1,STTS22H_I2C_ADDR_7B<<1, STTS22H_REG_STATUS, I2C_MEMADD_SIZE_8BIT, &reg_status, 1, 20) != HAL_OK) {
     return STTS22H_ERROR;
   }
 
-  // TODO 2: Extract "BUSY" bit into is_busy:
+  // To Extract "BUSY" bit into is_busy:
   *is_busy= (reg_status >> 0) & 0x01; 
 
   return STTS22H_OK;
