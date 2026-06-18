@@ -98,8 +98,12 @@ void task3_entry(void *pvParameters){
         // send to queue for Task 6 and Task 9
         xQueueSend(soundLevelQueue, &current_level, 0);
 
-        printf("Raw Data: %ld\r\n", mic_buffer[0]);
-        printf("Sound level: %ld\r\n", current_level);
+        // simple moving average filter for smoothing the sound level
+        static int32_t smoothed_level = 0;
+        smoothed_level = (smoothed_level * 7 + current_level) / 8; // smoothing factor of 8
+
+
+        printf("Sound level: %ld\r\n", smoothed_level);
 
         // delay
         vTaskDelay(pdMS_TO_TICKS(100));
