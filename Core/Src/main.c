@@ -20,6 +20,7 @@
 #include "main.h"
 #include "cmsis_os.h"
  #include "app.h"
+ 
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -97,9 +98,9 @@ void StartDefaultTask(void *argument);
 int main(void)
 {
 
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
+  // /* USER CODE BEGIN 1 */
+  
+  // /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -134,6 +135,11 @@ int main(void)
 
   Error_Handler(); // If app_main returns, there was an error. Handle it.
 
+  // HD44780_Init(2); // Initialize LCD with 2 rows
+  //  HD44780_Clear(); // Clear the display
+  //  HD44780_Backlight(); // Turn on the backlight
+  //  HD44780_SetCursor(0, 0); // Set cursor to first row, first column
+  //  HD44780_PrintStr("WELCOME"); // Print string on LCD
   /* USER CODE END 2 */
    
   /* Init scheduler */

@@ -31,6 +31,7 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32l476xx.s
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/bluetooth.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stts22h_driver.c
+    # ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/liquidcrystali2c.c
 
 )
 

@@ -8,6 +8,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "liquidcrystali2c.h"
 
 extern ADC_HandleTypeDef hadc1;
 
@@ -35,6 +36,7 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
   #define STACK_SIZE_TASK3 1024
   #define STACK_SIZE_Task4 1024
   #define STACK_SIZE_TASK6 512
+  #define STACK_SIZE_TASK5 512
   #define STACK_SIZE_TASK7 512
   #define STACK_SIZE_TASK9 1024
   #define STACK_SIZE_TASK10 512
@@ -48,6 +50,10 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
     TaskHandle_t task4 = 0;              // Task handle.
     StaticTask_t task4_tcb = {0};        // Task tcb.
     StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
+
+    TaskHandle_t task5 = 0;              // Task handle.
+    StaticTask_t task5_tcb = {0};        // Task tcb.
+    StackType_t task5_stack[STACK_SIZE_TASK5]; // Task stack.
 
     TaskHandle_t task6 = 0;              // Task handle.
     StaticTask_t task6_tcb = {0};        // Task tcb.
@@ -164,6 +170,24 @@ void task3_entry(void *pvParameters){
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
+// ==== Task 5 =================================================================
+void task5_entry(void *args){
+    printf("LCD Display");
+    // You can update real-time info here later (like temperature or sound data)
+        HD44780_Init(2); // Initialize LCD with 2 rows
+        HD44780_Clear(); // Clear the display
+        HD44780_Backlight(); // Turn on the backlight
+        HD44780_SetCursor(0, 0); // Set cursor to first row, first column
+        HD44780_PrintStr("WELCOME TO EBAN"); // Print string on LCD
+        HD44780_SetCursor(0, 1); // Set cursor to first row, first column
+        HD44780_PrintStr("SOUND DETECTION");
+        // Block to let other tasks execute seamlessly
+        vTaskDelay(pdMS_TO_TICKS(500)); 
+
+   while(1) {
+       
+    }
+}
 
 // ==== Task 6 =================================================================
 // Using the 12 matrix display real time VU meter of the microphone input using data in task 3
@@ -214,6 +238,7 @@ void task3_entry(void *pvParameters){
 
     while (1)
     {
+        
         BT_SendString("Hey \n");
         vTaskDelay(pdMS_TO_TICKS(1000));
         }
@@ -241,7 +266,7 @@ int app_main(void) {
     "Task 3", 
     STACK_SIZE_TASK3, 
     NULL, 
-    1, 
+    3, 
     task3_stack, 
     &task3_tcb);
   
@@ -253,6 +278,14 @@ int app_main(void) {
                               2,           // Priority at which the task is created.
                               task4_stack, // Array to use as the task's stack.
                               &task4_tcb); // Variable to hold the task's TCB.
+
+    task5 = xTaskCreateStatic(task5_entry, // Function that implements the task.
+                              "task5",     // Text name for the task.
+                              STACK_SIZE_TASK5,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              2,           // Priority at which the task is created.
+                              task5_stack, // Array to use as the task's stack.
+                              &task5_tcb); // Variable to hold the task's TCB.
     
     task7 = xTaskCreateStatic(task7_entry, // Function that implements the task.
                               "task7",     // Text name for the task.
