@@ -113,9 +113,19 @@ void Task2_entry(void* args)
   printf("3 --> Press DOWN button:    Residential Areas mode \r\n");
   printf("4 --> Press LEFT button:    Educational and Health Institutions mode \r\n");
 
+  bool up_was_pressed = false;
+  bool right_was_pressed = false;
+  bool down_was_pressed = false;
+  bool left_was_pressed = false;
+
   while (1)
   {
-    if (HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET)
+    bool up_pressed = (HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET);
+    bool right_pressed = (HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET);
+    bool down_pressed = (HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET);
+    bool left_pressed = (HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET);
+
+    if (up_pressed && !up_was_pressed)
     {
       vTaskDelay(pdMS_TO_TICKS(20)); // debounce confirm
       if (HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET)
@@ -124,7 +134,7 @@ void Task2_entry(void* args)
         printf("Public Assembly: Threshold of %d dB\r\n", THRESHOLD);
       }
     }
-    else if (HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
+    else if (right_pressed && !right_was_pressed)
     {
       vTaskDelay(pdMS_TO_TICKS(20));
       if (HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
@@ -133,17 +143,16 @@ void Task2_entry(void* args)
         printf("Commercial Areas: Threshold of %d dB\r\n", THRESHOLD);
       }
     }
-    else if (HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
+    else if (down_pressed && !down_was_pressed)
     {
       vTaskDelay(pdMS_TO_TICKS(20));
       if (HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
       {
         THRESHOLD = RESIDENTIAL_THRESHOLD;
         printf("Residential Areas: Threshold of %d dB\r\n", THRESHOLD);
-
       }
     }
-    else if (HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET)
+    else if (left_pressed && !left_was_pressed)
     {
       vTaskDelay(pdMS_TO_TICKS(20));
       if (HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET)
@@ -153,7 +162,12 @@ void Task2_entry(void* args)
       }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(50)); // fast poll instead of 1000ms
+    up_was_pressed = up_pressed;
+    right_was_pressed = right_pressed;
+    down_was_pressed = down_pressed;
+    left_was_pressed = left_pressed;
+
+    vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
 
