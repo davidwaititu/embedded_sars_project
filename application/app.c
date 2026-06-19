@@ -18,6 +18,9 @@ extern ADC_HandleTypeDef hadc1;
 extern DFSDM_Filter_HandleTypeDef hdfsdm1_filter0;
 extern DFSDM_Channel_HandleTypeDef hdfsdm1_channel4;
 extern DMA_HandleTypeDef hdma_dfsdm1_flt0;
+extern DFSDM_Filter_HandleTypeDef hdfsdm1_filter1; // Added for Mic 2
+extern DMA_HandleTypeDef hdma_dfsdm1_flt1;         // Added for Mic 2 DMA
+extern DFSDM_Channel_HandleTypeDef hdfsdm1_channel3; // Added for Mic 2
 
 extern I2C_HandleTypeDef hi2c1;
 
@@ -42,6 +45,7 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
   #define STACK_SIZE_TASK9 1024
   #define STACK_SIZE_TASK10 512
   #define MIC_BUFFER_SIZE 128
+  
 
 
   #define PUBLIC_ASSEMBLY_THRESHOLD 60
@@ -88,49 +92,68 @@ StackType_t task2_stack[STACK_SIZE_TASK2]; // Task stack.
 
 
 int32_t mic_buffer[MIC_BUFFER_SIZE]; // buffer to store microphone data, used in task 3 to read microphone data
+int32_t mic_buffer2[MIC_BUFFER_SIZE];   // Channel 3 (Rising edge mic)
 QueueHandle_t soundLevelQueueVU,soundLevelQueueBT, gracePeriodQueue, soundLevelQueuePWM ; // queue to store microphone data, 
 SemaphoreHandle_t stdoutMutex;
 
  uint32_t grace_period_ms = 5000;  // default 5 seconds
 volatile int THRESHOLD = 60;
+volatile bool bt_warning_active = false; // set by Task8, read by Task10
+volatile float bt_dbspl = 0.0f;
 
 
 // ==== Task 2 =================================================================
-void Task2_entry(void* args)// Servo_Motor control dependent on the sound threshold
+void Task2_entry(void* args)
 {
   UNUSED(args);
-    printf("Mode selection \r\n");// should be displayed on the LCD display
-    printf("**************\r\n");
-    printf("1 --> Press UP button:      Public Assembly mode \r\n");
-    printf("2 --> Press RIGHT button:   Commercial Areas mode \r\n");  
-    printf("3 --> Press DOWN button:    Residential Areas mode \r\n");
-    printf("4 --> Press LEFT button:    Educational and Health Institutions mode \r\n");
+  printf("Mode selection \r\n");
+  printf("**************\r\n");
+  printf("1 --> Press UP button:      Public Assembly mode \r\n");
+  printf("2 --> Press RIGHT button:   Commercial Areas mode \r\n");
+  printf("3 --> Press DOWN button:    Residential Areas mode \r\n");
+  printf("4 --> Press LEFT button:    Educational and Health Institutions mode \r\n");
 
-    
-while (1)
+  while (1)
   {
-    
-    if(HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET)
+    if (HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET)
     {
-     THRESHOLD=PUBLIC_ASSEMBLY_THRESHOLD; // in dB
-     printf("Public Assembly: Threshold of %d dB\r\n", THRESHOLD);
+      vTaskDelay(pdMS_TO_TICKS(20)); // debounce confirm
+      if (HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET)
+      {
+        THRESHOLD = PUBLIC_ASSEMBLY_THRESHOLD;
+        printf("Public Assembly: Threshold of %d dB\r\n", THRESHOLD);
+      }
     }
-    else if(HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
+    else if (HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
     {
-      THRESHOLD=COMMERCIAL_THRESHOLD; // in dB
-      printf("Commercial Areas: Threshold of %d dB\r\n", THRESHOLD);
+      vTaskDelay(pdMS_TO_TICKS(20));
+      if (HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
+      {
+        THRESHOLD = COMMERCIAL_THRESHOLD;
+        printf("Commercial Areas: Threshold of %d dB\r\n", THRESHOLD);
+      }
     }
-    else if(HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
+    else if (HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
     {
-      THRESHOLD=RESIDENTIAL_THRESHOLD; // in dB
-      printf("Residential Areas: Threshold of %d dB\r\n", THRESHOLD);
+      vTaskDelay(pdMS_TO_TICKS(20));
+      if (HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
+      {
+        THRESHOLD = RESIDENTIAL_THRESHOLD;
+        printf("Residential Areas: Threshold of %d dB\r\n", THRESHOLD);
+
+      }
     }
-    else if(HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET)
+    else if (HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET)
     {
-      THRESHOLD=EDUCATIONAL_THRESHOLD; // in dB
-      printf("Educational and HealthInstitutions: Threshold of %d dB\r\n", THRESHOLD);
+      vTaskDelay(pdMS_TO_TICKS(20));
+      if (HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET)
+      {
+        THRESHOLD = EDUCATIONAL_THRESHOLD;
+        printf("Educational and Health Institutions: Threshold of %d dB\r\n", THRESHOLD);
+      }
     }
-    vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to debounce button presses and avoid rapid threshold changes
+
+    vTaskDelay(pdMS_TO_TICKS(50)); // fast poll instead of 1000ms
   }
 }
 
@@ -139,74 +162,72 @@ while (1)
 
 void task3_entry(void *pvParameters){
     // start DMA
-    HAL_StatusTypeDef status = HAL_DFSDM_FilterRegularStart_DMA(&hdfsdm1_filter0, mic_buffer, MIC_BUFFER_SIZE);
-  if (status != HAL_OK) {
-      printf("DMA start failed: %d\r\n", status);
-  }
-
-    int32_t current_level = 0;
+  if(HAL_DFSDM_FilterRegularStart_DMA(&hdfsdm1_filter0, mic_buffer, MIC_BUFFER_SIZE) != HAL_OK)
+    {
+        // status not declared in scope 
+        printf("DMA start failed for filter 0\r\n");
+    }
+    if (HAL_DFSDM_FilterRegularStart_DMA(&hdfsdm1_filter1, mic_buffer2, MIC_BUFFER_SIZE) != HAL_OK)
+    {
+        printf("DMA start failed for filter 1 \r\n");
+    }
     while(1){
-    static uint32_t notify_count = 0;
-    notify_count++;
-    printf("Task3 notify #%lu\r\n", notify_count);
         // wait for DMA to finish
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
         // process data
         // Calculate DC offset
-        int32_t dc_offset = 0;
+            // 1. Calculate DC offset for BOTH buffers in one go
+        int32_t dc_offset1 = 0;
+        int32_t dc_offset2 = 0;
+
         for (int i = 0; i < MIC_BUFFER_SIZE; i++) {
-            dc_offset += mic_buffer[i];
+            dc_offset1 += mic_buffer[i];
+            dc_offset2 += mic_buffer2[i];
         }
-        dc_offset /= MIC_BUFFER_SIZE;
+        dc_offset1 /= MIC_BUFFER_SIZE;
+        dc_offset2 /= MIC_BUFFER_SIZE;
 
-        // 2. Second pass: Calculate the true sound amplitude
-        // Calculate RMS amplitude
-        float sum_sq = 0.0f;
+        // 2. Calculate RMS amplitude for BOTH buffers
+        float sum_sq1 = 0.0f;
+        float sum_sq2 = 0.0f;
 
-        for(int i = 0; i < MIC_BUFFER_SIZE; i++)
-        {
-            float sample = (float)(mic_buffer[i] - dc_offset);
-            sum_sq += sample * sample;
+        for(int i = 0; i < MIC_BUFFER_SIZE; i++) {
+            float sample1 = (float)(mic_buffer[i] - dc_offset1);
+            sum_sq1 += sample1 * sample1;
+
+            float sample2 = (float)(mic_buffer2[i] - dc_offset2);
+            sum_sq2 += sample2 * sample2;
         }
 
-        current_level = (int32_t)sqrtf(sum_sq / MIC_BUFFER_SIZE);
+        int32_t current_level1 = (int32_t)sqrtf(sum_sq1 / MIC_BUFFER_SIZE);
+        int32_t current_level2 = (int32_t)sqrtf(sum_sq2 / MIC_BUFFER_SIZE);
 
-        
+        // 3. Average the raw levels BEFORE calculating the heavy log10f
+        int32_t combined_level = (current_level1 + current_level2) / 2;
 
-
-        // simple moving average filter for sound level
+        // 4. Run your existing smoothed filter and dB math on the combined level
         static int32_t smoothed_level = 0;
-        smoothed_level = (smoothed_level * 3 + current_level) / 4;
-        
-        // printf("Sound Level: %ld\r\n", smoothed_level);
+        smoothed_level = (smoothed_level * 3 + combined_level) / 4;
 
-        // convert to dB, assuming 0-4095 range for microphone data
         float normalized_level = (float)smoothed_level / 32767.0f;
-
-        if(normalized_level < 0.000001f)
-        {
-            normalized_level = 0.000001f;
-        }
+        if(normalized_level < 0.000001f) normalized_level = 0.000001f;
 
         float dbfs = 20.0f * log10f(normalized_level);
-
-        // MP34DT05-A sensitivity:
         float calibration_offset = 65.0f; 
-        
         float dbspl = dbfs + calibration_offset;
 
-        printf("Sound Level: %.2f dBSPL\r\n", dbspl);
+        // printf("Sound Level: %.2f dBSPL\r\n", dbspl);
 
 
                 // send to queue for Task 6 and Task 9
         xQueueSend(soundLevelQueueVU, &dbspl, 0);
-        xQueueSend(soundLevelQueueBT, &dbspl, 0);
+        // xQueueSend(soundLevelQueueBT, &dbspl, 0);
         xQueueSend(soundLevelQueuePWM, &dbspl, 0);
 
 
         // delay
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
 }
@@ -372,14 +393,17 @@ void task6_entry(void *args){
     while (1)
     {
         // send sound level in dB over Bluetooth
-         float dbspl;
-        if (xQueueReceive(soundLevelQueueBT, &dbspl, pdMS_TO_TICKS(100)) == pdPASS) {
-        
+       
             char bt_message[50];
+            float dbspl = bt_dbspl;
             
-            snprintf(bt_message, sizeof(bt_message), "Sound Level: %.2f dBSPL\r\n", dbspl);
+            if(bt_warning_active) {
+                snprintf(bt_message, sizeof(bt_message), "Warning: Limit %.2f dBSPL - Exceeded!\r\n", dbspl);
+            } else {
+                snprintf(bt_message, sizeof(bt_message), "Sound Level: %.2f dBSPL\r\n", dbspl);
+            }
             BT_SendString(bt_message);
-        }
+        
          vTaskDelay(pdMS_TO_TICKS(2000));
     }
 
@@ -397,17 +421,7 @@ void Task8_entry(void* args)
     Error_Handler();
   }
 
-  // Sweep test - runs ONCE at startup
-  printf("Servo sweep test starting...\r\n");
-  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 500);
-  vTaskDelay(pdMS_TO_TICKS(1000));
-  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1000);
-  vTaskDelay(pdMS_TO_TICKS(1000));
-  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1500);
-  vTaskDelay(pdMS_TO_TICKS(1000));
-  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2000);
-  vTaskDelay(pdMS_TO_TICKS(1000));
-  printf("Servo sweep test done.\r\n");
+ 
 
   float dbspl = 0.0f;
   uint32_t grace_period = 5000;
@@ -419,8 +433,14 @@ void Task8_entry(void* args)
   while (1)
   {
     
-    xQueueReceive(soundLevelQueuePWM, &dbspl, 0);
+    BaseType_t got_sound =xQueueReceive(soundLevelQueuePWM, &dbspl, 0);
     xQueueReceive(gracePeriodQueue, &grace_period, 0);
+    bt_dbspl = dbspl;
+
+    if (got_sound != pdPASS) {
+    vTaskDelay(pdMS_TO_TICKS(100));
+    continue; // Skip the rest of the loop if no sound level was received
+    }
 
     TickType_t now = xTaskGetTickCount();
 
@@ -432,6 +452,7 @@ void Task8_entry(void* args)
       {
         is_threshold_exceeded = true;
         exceed_start_time = now;
+        bt_warning_active = true; // Set the Bluetooth warning flag
         printf("Threshold exceeded! Grace period started.\r\n");
       }
 
@@ -455,6 +476,7 @@ void Task8_entry(void* args)
           (now - last_above_threshold_time) >= pdMS_TO_TICKS(HYSTERESIS_MS))
       {
         is_threshold_exceeded = false;
+        bt_warning_active = false; // Clear the Bluetooth warning flag
         printf("Sound settled. Resetting. Closing servo.\r\n");
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1000); // Close
       }
@@ -477,18 +499,18 @@ void Task8_entry(void* args)
 int app_main(void) {
 
 
-soundLevelQueueVU = xQueueCreate(1, sizeof(float)); // create queue to store microphone data for VU meter
-soundLevelQueueBT = xQueueCreate(1, sizeof(float)); // create queue to store normalized sound levels for Bluetooth transmission
+soundLevelQueueVU = xQueueCreate(3, sizeof(float)); // create queue to store microphone data for VU meter
+// soundLevelQueueBT = xQueueCreate(3, sizeof(float)); // create queue to store normalized sound levels for Bluetooth transmission
 gracePeriodQueue = xQueueCreate(1, sizeof(uint32_t)); // create queue to store grace period for Task 8
 stdoutMutex = xSemaphoreCreateMutex();
-soundLevelQueuePWM = xQueueCreate(1, sizeof(float));
+soundLevelQueuePWM = xQueueCreate(3, sizeof(float));
 
 
 task2 = xTaskCreateStatic(Task2_entry, // Function that implements the task.
                               "task2",     // Text name for the task.
                               STACK_SIZE_TASK2,  // Number of indexes in the stack array.
                               0,           // Parameter passed into the task.
-                              5,           // Priority at which the task is created.
+                              1,           // Priority at which the task is created.
                               task2_stack, // Array to use as the task's stack.
                               &task2_tcb); // Variable to hold the task's TCB.
   // Create task 3: Task to read microphone data and process it
@@ -497,7 +519,7 @@ task2 = xTaskCreateStatic(Task2_entry, // Function that implements the task.
     "Task 3", 
     STACK_SIZE_TASK3, 
     NULL, 
-    4, 
+    5, 
     task3_stack, 
     &task3_tcb);
   
@@ -514,7 +536,7 @@ task2 = xTaskCreateStatic(Task2_entry, // Function that implements the task.
                               "task7",     // Text name for the task.
                               STACK_SIZE_TASK7,  // Number of indexes in the stack array.
                               0,           // Parameter passed into the task.
-                              2,           // Priority at which the task is created.
+                              1,           // Priority at which the task is created.
                               task7_stack, // Array to use as the task's stack.
                               &task7_tcb); // Variable to hold the task's TCB.
 
@@ -523,16 +545,17 @@ task2 = xTaskCreateStatic(Task2_entry, // Function that implements the task.
                               "task10",     // Text name for the task.
                               STACK_SIZE_TASK10,  // Number of indexes in the stack array.
                               0,           // Parameter passed into the task.
-                              2,           // Priority at which the task is created.
+                              3,           // Priority at which the task is created.
                               task10_stack, // Array to use as the task's stack.
                               &task10_tcb); // Variable to hold the task's TCB.
 
 // create task 6: Task to display VU meter on matrix display
-    xTaskCreateStatic(task6_entry, // Function that implements the task.
+ task6=   xTaskCreateStatic(
+    task6_entry, // Function that implements the task.
                               "task6",     // Text name for the task.
                               STACK_SIZE_TASK6,  // Number of indexes in the stack array.
                               0,           // Parameter passed into the task.
-                              4,           // Priority at which the task is created.
+                              3,           // Priority at which the task is created.
                               task6_stack, // Array to use as the task's stack.
                               &task6_tcb); // Variable to hold the task's TCB.
 
@@ -540,7 +563,7 @@ task8 = xTaskCreateStatic(Task8_entry, // Function that implements the task.
                               "task8",     // Text name for the task.
                               STACK_SIZE_TASK8,  // Number of indexes in the stack array.
                               0,           // Parameter passed into the task.
-                              2,           // Priority at which the task is created.
+                              6,           // Priority at which the task is created.
                               task8_stack, // Array to use as the task's stack.
                               &task8_tcb); // Variable to hold the task's TCB.
 
@@ -553,10 +576,13 @@ void HAL_DFSDM_FilterRegConvCpltCallback(DFSDM_Filter_HandleTypeDef *hdfsdm_filt
 {
 // HAL_GPIO_TogglePin(LED_1_GPIO_Port, LED_1_Pin); // toggle LED to indicate DMA is done
 
-    
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    if (hdfsdm_filter->Instance == hdfsdm1_filter0.Instance || 
+        hdfsdm_filter->Instance == hdfsdm1_filter1.Instance)
+   {
+     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     vTaskNotifyGiveFromISR(task3, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+   }
 
   /* NOTE : This function should not be modified, when the callback is needed,
             the HAL_DFSDM_FilterRegConvCpltCallback could be implemented in the user file.
