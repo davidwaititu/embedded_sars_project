@@ -1,6 +1,7 @@
  #include "bluetooth.h"
 #include "main.h"
 #include "projdefs.h"
+#include "stm32l4xx_hal_gpio.h"
  #include "stts22h_driver.h"
  #include <stdio.h>
  #include "app.h"
@@ -35,7 +36,7 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
 
 
 
-
+#define STACK_SIZE_TASK1 64
   #define STACK_SIZE_TASK2 512
   #define STACK_SIZE_TASK3 1024
   #define STACK_SIZE_Task4 1024
@@ -55,6 +56,10 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
 
     #define HYSTERESIS_MS 2000  // must stay below threshold for 2s before reset
 
+
+TaskHandle_t task1 = 0;              // Task handle.
+StaticTask_t task1_tcb = {0};        // Task tcb.
+StackType_t task1_stack[STACK_SIZE_TASK1]; // Task stack.
 
 
 TaskHandle_t task2 = 0;              // Task handle.
@@ -100,6 +105,21 @@ SemaphoreHandle_t stdoutMutex;
 volatile int THRESHOLD = 60;
 volatile bool bt_warning_active = false; // set by Task8, read by Task10
 volatile float bt_dbspl = 0.0f;
+
+
+// ==== Task 1 =================================================================
+void Task1_entry(void* args)
+{
+  UNUSED(args);
+ while (1)
+  {
+    // Task 1 code here
+    HAL_GPIO_WritePin(HEARTBEAT_EXTERNAL_GPIO_Port, HEARTBEAT_EXTERNAL_Pin, GPIO_PIN_SET);
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Delay for 1 second
+    HAL_GPIO_WritePin(HEARTBEAT_EXTERNAL_GPIO_Port, HEARTBEAT_EXTERNAL_Pin, GPIO_PIN_RESET);
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Delay for 1 second
+  }
+}
 
 
 // ==== Task 2 =================================================================
@@ -478,6 +498,7 @@ void Task8_entry(void* args)
       {
         printf("Grace period elapsed. Opening servo.\r\n");
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2000); // Open
+        HAL_GPIO_TogglePin(WARNING_LIGHT_GPIO_Port, WARNING_LIGHT_Pin); // Turn on LED
       }
       else
       {
@@ -492,6 +513,7 @@ void Task8_entry(void* args)
         is_threshold_exceeded = false;
         bt_warning_active = false; // Clear the Bluetooth warning flag
         printf("Sound settled. Resetting. Closing servo.\r\n");
+        HAL_GPIO_WritePin(WARNING_LIGHT_GPIO_Port, WARNING_LIGHT_Pin, GPIO_PIN_RESET); // Turn off LED
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1000); // Close
       }
     }
@@ -499,15 +521,6 @@ void Task8_entry(void* args)
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
-
-
-// ==== Task 9 =================================================================
-// Power managemnt: Put the microcontroller in sleep mode when there is no sound input for more than 5 seconds. 
-// Wake up the microcontroller when sound is detected again. 
-// Use the microphone input to detect sound levels and determine when to enter and exit sleep mode.
-
-
-
 
   
 int app_main(void) {
@@ -518,6 +531,14 @@ soundLevelQueueVU = xQueueCreate(3, sizeof(float)); // create queue to store mic
 gracePeriodQueue = xQueueCreate(1, sizeof(uint32_t)); // create queue to store grace period for Task 8
 stdoutMutex = xSemaphoreCreateMutex();
 soundLevelQueuePWM = xQueueCreate(3, sizeof(float));
+
+task1 = xTaskCreateStatic(Task1_entry, // Function that implements the task.
+                              "task1",     // Text name for the task.
+                              STACK_SIZE_TASK1,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              1,           // Priority at which the task is created.
+                              task1_stack, // Array to use as the task's stack.
+                              &task1_tcb); // Variable to hold the task's TCB.
 
 
 task2 = xTaskCreateStatic(Task2_entry, // Function that implements the task.
