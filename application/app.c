@@ -1,7 +1,10 @@
  #include "bluetooth.h"
 #include "main.h"
 #include "projdefs.h"
+<<<<<<< HEAD
 #include "stm32l4xx_hal_gpio.h"
+=======
+>>>>>>> origin/abigael
  #include "stts22h_driver.h"
  #include <stdio.h>
  #include "app.h"
@@ -10,8 +13,14 @@
 #include "task.h"
 #include "queue.h"
 #include "math.h"
+<<<<<<< HEAD
 #include <stdbool.h>
 #include "semphr.h"
+=======
+#include <stdbool.h>    
+#include "semphr.h"
+#include "liquidcrystali2c.h"
+>>>>>>> origin/abigael
 
 
 extern ADC_HandleTypeDef hadc1;
@@ -36,6 +45,7 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
 
 
 
+<<<<<<< HEAD
 #define STACK_SIZE_TASK1 64
   #define STACK_SIZE_TASK2 512
   #define STACK_SIZE_TASK3 1024
@@ -43,6 +53,16 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
   #define STACK_SIZE_TASK6 512
   #define STACK_SIZE_TASK7 512
     #define STACK_SIZE_TASK8 512
+=======
+
+  #define STACK_SIZE_TASK2 512
+  #define STACK_SIZE_TASK3 1024
+  #define STACK_SIZE_Task4 1024
+  #define STACK_SIZE_Task5 1024
+  #define STACK_SIZE_TASK6 512
+  #define STACK_SIZE_TASK7 512
+  #define STACK_SIZE_TASK8 512
+>>>>>>> origin/abigael
   #define STACK_SIZE_TASK9 1024
   #define STACK_SIZE_TASK10 512
   #define MIC_BUFFER_SIZE 128
@@ -57,10 +77,13 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
     #define HYSTERESIS_MS 2000  // must stay below threshold for 2s before reset
 
 
+<<<<<<< HEAD
 TaskHandle_t task1 = 0;              // Task handle.
 StaticTask_t task1_tcb = {0};        // Task tcb.
 StackType_t task1_stack[STACK_SIZE_TASK1]; // Task stack.
 
+=======
+>>>>>>> origin/abigael
 
 TaskHandle_t task2 = 0;              // Task handle.
 StaticTask_t task2_tcb = {0};        // Task tcb.
@@ -74,6 +97,10 @@ StackType_t task2_stack[STACK_SIZE_TASK2]; // Task stack.
     TaskHandle_t task4 = 0;              // Task handle.
     StaticTask_t task4_tcb = {0};        // Task tcb.
     StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
+
+    TaskHandle_t task5 = 0;              // Task handle.
+    StaticTask_t task5_tcb = {0};        // Task tcb.
+    StackType_t task5_stack[STACK_SIZE_Task5]; // Task stack.
 
     TaskHandle_t task6 = 0;              // Task handle.
     StaticTask_t task6_tcb = {0};        // Task tcb.
@@ -146,6 +173,9 @@ void Task2_entry(void* args)
     bool left_pressed = (HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET);
 
     if (up_pressed && !up_was_pressed)
+  while (1)
+  {
+    if (HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET)
     {
       vTaskDelay(pdMS_TO_TICKS(20)); // debounce confirm
       if (HAL_GPIO_ReadPin(UP_BTN_GPIO_Port, UP_BTN_Pin) == GPIO_PIN_RESET)
@@ -155,6 +185,16 @@ void Task2_entry(void* args)
       }
     }
     else if (right_pressed && !right_was_pressed)
+        
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("MODE SELECTED:");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("PUBLIC ASSEMBLY");
+        
+      }
+    }
+    else if (HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
     {
       vTaskDelay(pdMS_TO_TICKS(20));
       if (HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
@@ -164,6 +204,14 @@ void Task2_entry(void* args)
       }
     }
     else if (down_pressed && !down_was_pressed)
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("MODE SELECTED:");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("COMMERCIAL AREAS");
+      }
+    }
+    else if (HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
     {
       vTaskDelay(pdMS_TO_TICKS(20));
       if (HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
@@ -173,6 +221,15 @@ void Task2_entry(void* args)
       }
     }
     else if (left_pressed && !left_was_pressed)
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("MODE SELECTED:");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("RESIDENTIAL");
+
+      }
+    }
+    else if (HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET)
     {
       vTaskDelay(pdMS_TO_TICKS(20));
       if (HAL_GPIO_ReadPin(LEFT_BTN_GPIO_Port, LEFT_BTN_Pin) == GPIO_PIN_RESET)
@@ -188,6 +245,15 @@ void Task2_entry(void* args)
     left_was_pressed = left_pressed;
 
     vTaskDelay(pdMS_TO_TICKS(50));
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("MODE SELECTED:");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("HEALTH");
+      }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(50)); // fast poll instead of 1000ms
   }
 }
 
@@ -314,6 +380,27 @@ void task3_entry(void *pvParameters){
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
+// ==== Task 5 =================================================================
+void task5_entry(void *args){
+    printf("LCD Display");
+    // You can update real-time info here later (like temperature or sound data)
+        HD44780_Init(2); // Initialize LCD with 2 rows
+        HD44780_Clear(); // Clear the display
+        HD44780_Backlight(); // Turn on the backlight
+        HD44780_SetCursor(0, 0); // Set cursor to first row, first column
+        HD44780_PrintStr("WELCOME TO EBAN"); // Print string on LCD
+        HD44780_SetCursor(0, 1); // Set cursor to first row, first column
+        HD44780_PrintStr("SOUND DETECTION");
+        // Block to let other tasks execute seamlessly
+        vTaskDelay(pdMS_TO_TICKS(5000)); 
+        HD44780_Clear();
+        
+
+   while(1) {
+
+       
+    }
+}
 
 /// ==== Task 6 =================================================================
 // Using the 12 matrix display real time VU meter of the microphone input using data in task 3
@@ -382,7 +469,7 @@ void task6_entry(void *args){
   void task7_entry(void *args)
 {
     UNUSED(args);
-    printf("Task 7: Potentiometer + Grace control started\r\n");
+    printf(" Potentiometer + Grace control started\r\n");
 
     while (1)
     {
@@ -491,7 +578,7 @@ void Task8_entry(void* args)
       }
 
       TickType_t elapsed = now - exceed_start_time;
-      printf("Task 8: dBSPL: %.2f, elapsed: %lu ms, grace: %lu ms\r\n",
+      printf("dBSPL: %.2f, elapsed: %lu ms, grace: %lu ms\r\n",
        dbspl, (elapsed * 1000) / configTICK_RATE_HZ, grace_period);
 
       if (elapsed >= pdMS_TO_TICKS(grace_period))
@@ -499,6 +586,11 @@ void Task8_entry(void* args)
         printf("Grace period elapsed. Opening servo.\r\n");
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2000); // Open
         HAL_GPIO_TogglePin(WARNING_LIGHT_GPIO_Port, WARNING_LIGHT_Pin); // Turn on LED
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("!!! WARNING !!!");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("NOISE VIOLATION");
       }
       else
       {
@@ -515,6 +607,12 @@ void Task8_entry(void* args)
         printf("Sound settled. Resetting. Closing servo.\r\n");
         HAL_GPIO_WritePin(WARNING_LIGHT_GPIO_Port, WARNING_LIGHT_Pin, GPIO_PIN_RESET); // Turn off LED
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1000); // Close
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1000); // Close
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("    NORMAL    ");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("  SOUND LEVELS  ");
       }
     }
 
@@ -566,6 +664,15 @@ task2 = xTaskCreateStatic(Task2_entry, // Function that implements the task.
                               1,           // Priority at which the task is created.
                               task4_stack, // Array to use as the task's stack.
                               &task4_tcb); // Variable to hold the task's TCB.
+
+    //TASK 5: LCD DISPLAY
+    task5 = xTaskCreateStatic(task5_entry, // Function that implements the task.
+                              "task5",     // Text name for the task.
+                              STACK_SIZE_Task5,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              1,           // Priority at which the task is created.
+                              task5_stack, // Array to use as the task's stack.
+                              &task5_tcb); // Variable to hold the task's TCB.
     // Create task 7: Task to read potentiometer and adjust grace period
     task7 = xTaskCreateStatic(task7_entry, // Function that implements the task.
                               "task7",     // Text name for the task.
