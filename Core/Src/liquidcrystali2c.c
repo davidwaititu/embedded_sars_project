@@ -60,23 +60,23 @@ void HD44780_Init(uint8_t rows)
 
   /* Wait for initialization */
   DelayInit();
-  vTaskDelay(pdMS_TO_TICKS(50));
+  vTaskDelay(pdMS_TO_TICKS(10));
 
   ExpanderWrite(dpBacklight);
-  vTaskDelay(pdMS_TO_TICKS(100));
+  vTaskDelay(pdMS_TO_TICKS(5));
 
   /* 4bit Mode */
   Write4Bits(0x03 << 4);
- vTaskDelay(pdMS_TO_TICKS(100));
+ vTaskDelay(pdMS_TO_TICKS(5));
 
   Write4Bits(0x03 << 4);
-  vTaskDelay(pdMS_TO_TICKS(100));
+  vTaskDelay(pdMS_TO_TICKS(5));
 
   Write4Bits(0x03 << 4);
-  vTaskDelay(pdMS_TO_TICKS(100));
+  vTaskDelay(pdMS_TO_TICKS(5));
 
   Write4Bits(0x02 << 4);
-  vTaskDelay(pdMS_TO_TICKS(100));
+  vTaskDelay(pdMS_TO_TICKS(5));
 
   /* Display Control */
   SendCommand(LCD_FUNCTIONSET | dpFunction);
@@ -99,13 +99,13 @@ void HD44780_Init(uint8_t rows)
 void HD44780_Clear()
 {
   SendCommand(LCD_CLEARDISPLAY);
-  vTaskDelay(pdMS_TO_TICKS(100));
+  vTaskDelay(pdMS_TO_TICKS(2));
 }
 
 void HD44780_Home()
 {
   SendCommand(LCD_RETURNHOME);
- vTaskDelay(pdMS_TO_TICKS(100));
+ vTaskDelay(pdMS_TO_TICKS(2));
 }
 
 void HD44780_SetCursor(uint8_t col, uint8_t row)
@@ -264,10 +264,10 @@ static void ExpanderWrite(uint8_t _data)
 static void PulseEnable(uint8_t _data)
 {
   ExpanderWrite(_data | ENABLE);
-  vTaskDelay(pdMS_TO_TICKS(100));
+  for(volatile int i=0; i<100; i++);
 
   ExpanderWrite(_data & ~ENABLE);
-  vTaskDelay(pdMS_TO_TICKS(100));
+  for(volatile int i=0; i<100; i++);
 }
 
 static void DelayInit(void)

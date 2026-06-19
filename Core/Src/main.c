@@ -19,8 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
- #include "app.h"
- 
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -101,9 +99,9 @@ void StartDefaultTask(void *argument);
 int main(void)
 {
 
-  // /* USER CODE BEGIN 1 */
+  /* USER CODE BEGIN 1 */
   
-  // /* USER CODE END 1 */
+  /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -144,7 +142,7 @@ int main(void)
   //  HD44780_SetCursor(0, 0); // Set cursor to first row, first column
   //  HD44780_PrintStr("WELCOME"); // Print string on LCD
   /* USER CODE END 2 */
-   
+
   /* Init scheduler */
   osKernelInitialize();
 
@@ -498,7 +496,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 3;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 19999;
+  htim3.Init.Period = 65535;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)

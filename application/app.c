@@ -40,9 +40,10 @@ extern TaskHandle_t task3; // Task 3 handle, used to notify task 3 when DMA is d
   #define STACK_SIZE_TASK2 512
   #define STACK_SIZE_TASK3 1024
   #define STACK_SIZE_Task4 1024
+  #define STACK_SIZE_Task5 1024
   #define STACK_SIZE_TASK6 512
   #define STACK_SIZE_TASK7 512
-    #define STACK_SIZE_TASK8 512
+  #define STACK_SIZE_TASK8 512
   #define STACK_SIZE_TASK9 1024
   #define STACK_SIZE_TASK10 512
   #define MIC_BUFFER_SIZE 128
@@ -70,6 +71,10 @@ StackType_t task2_stack[STACK_SIZE_TASK2]; // Task stack.
     TaskHandle_t task4 = 0;              // Task handle.
     StaticTask_t task4_tcb = {0};        // Task tcb.
     StackType_t task4_stack[STACK_SIZE_Task4]; // Task stack.
+
+    TaskHandle_t task5 = 0;              // Task handle.
+    StaticTask_t task5_tcb = {0};        // Task tcb.
+    StackType_t task5_stack[STACK_SIZE_Task5]; // Task stack.
 
     TaskHandle_t task6 = 0;              // Task handle.
     StaticTask_t task6_tcb = {0};        // Task tcb.
@@ -123,6 +128,13 @@ void Task2_entry(void* args)
       {
         THRESHOLD = PUBLIC_ASSEMBLY_THRESHOLD;
         printf("Public Assembly: Threshold of %d dB\r\n", THRESHOLD);
+        
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("MODE SELECTED:");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("PUBLIC ASSEMBLY");
+        
       }
     }
     else if (HAL_GPIO_ReadPin(RIGHT_BTN_GPIO_Port, RIGHT_BTN_Pin) == GPIO_PIN_RESET)
@@ -132,6 +144,11 @@ void Task2_entry(void* args)
       {
         THRESHOLD = COMMERCIAL_THRESHOLD;
         printf("Commercial Areas: Threshold of %d dB\r\n", THRESHOLD);
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("MODE SELECTED:");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("COMMERCIAL AREAS");
       }
     }
     else if (HAL_GPIO_ReadPin(DOWN_BTN_GPIO_Port, DOWN_BTN_Pin) == GPIO_PIN_RESET)
@@ -141,6 +158,11 @@ void Task2_entry(void* args)
       {
         THRESHOLD = RESIDENTIAL_THRESHOLD;
         printf("Residential Areas: Threshold of %d dB\r\n", THRESHOLD);
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("MODE SELECTED:");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("RESIDENTIAL");
 
       }
     }
@@ -151,6 +173,11 @@ void Task2_entry(void* args)
       {
         THRESHOLD = EDUCATIONAL_THRESHOLD;
         printf("Educational and Health Institutions: Threshold of %d dB\r\n", THRESHOLD);
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("MODE SELECTED:");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("HEALTH");
       }
     }
 
@@ -293,9 +320,12 @@ void task5_entry(void *args){
         HD44780_SetCursor(0, 1); // Set cursor to first row, first column
         HD44780_PrintStr("SOUND DETECTION");
         // Block to let other tasks execute seamlessly
-        vTaskDelay(pdMS_TO_TICKS(500)); 
+        vTaskDelay(pdMS_TO_TICKS(5000)); 
+        HD44780_Clear();
+        
 
    while(1) {
+
        
     }
 }
@@ -367,7 +397,7 @@ void task6_entry(void *args){
   void task7_entry(void *args)
 {
     UNUSED(args);
-    printf("Task 7: Potentiometer + Grace control started\r\n");
+    printf(" Potentiometer + Grace control started\r\n");
 
     while (1)
     {
@@ -476,13 +506,18 @@ void Task8_entry(void* args)
       }
 
       TickType_t elapsed = now - exceed_start_time;
-      printf("Task 8: dBSPL: %.2f, elapsed: %lu ms, grace: %lu ms\r\n",
+      printf("dBSPL: %.2f, elapsed: %lu ms, grace: %lu ms\r\n",
        dbspl, (elapsed * 1000) / configTICK_RATE_HZ, grace_period);
 
       if (elapsed >= pdMS_TO_TICKS(grace_period))
       {
         printf("Grace period elapsed. Opening servo.\r\n");
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 2000); // Open
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("!!! WARNING !!!");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("NOISE VIOLATION");
       }
       else
       {
@@ -498,6 +533,11 @@ void Task8_entry(void* args)
         bt_warning_active = false; // Clear the Bluetooth warning flag
         printf("Sound settled. Resetting. Closing servo.\r\n");
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 1000); // Close
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr("    NORMAL    ");
+        HD44780_SetCursor(0, 1);
+        HD44780_PrintStr("  SOUND LEVELS  ");
       }
     }
 
@@ -550,6 +590,15 @@ task2 = xTaskCreateStatic(Task2_entry, // Function that implements the task.
                               1,           // Priority at which the task is created.
                               task4_stack, // Array to use as the task's stack.
                               &task4_tcb); // Variable to hold the task's TCB.
+
+    //TASK 5: LCD DISPLAY
+    task5 = xTaskCreateStatic(task5_entry, // Function that implements the task.
+                              "task5",     // Text name for the task.
+                              STACK_SIZE_Task5,  // Number of indexes in the stack array.
+                              0,           // Parameter passed into the task.
+                              1,           // Priority at which the task is created.
+                              task5_stack, // Array to use as the task's stack.
+                              &task5_tcb); // Variable to hold the task's TCB.
     // Create task 7: Task to read potentiometer and adjust grace period
     task7 = xTaskCreateStatic(task7_entry, // Function that implements the task.
                               "task7",     // Text name for the task.
