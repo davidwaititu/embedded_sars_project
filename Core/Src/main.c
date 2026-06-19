@@ -496,7 +496,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 3;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
+  htim3.Init.Period = 19999;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
@@ -631,7 +631,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, MATRIX_RCK_Pin|LED_1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, MATRIX_RCK_Pin|HEARTBEAT_EXTERNAL_Pin|LED_1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(WARNING_LIGHT_GPIO_Port, WARNING_LIGHT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : UP_BTN_Pin RIGHT_BTN_Pin DOWN_BTN_Pin */
   GPIO_InitStruct.Pin = UP_BTN_Pin|RIGHT_BTN_Pin|DOWN_BTN_Pin;
@@ -645,12 +648,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(LEFT_BTN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : MATRIX_RCK_Pin LED_1_Pin */
-  GPIO_InitStruct.Pin = MATRIX_RCK_Pin|LED_1_Pin;
+  /*Configure GPIO pins : MATRIX_RCK_Pin HEARTBEAT_EXTERNAL_Pin LED_1_Pin */
+  GPIO_InitStruct.Pin = MATRIX_RCK_Pin|HEARTBEAT_EXTERNAL_Pin|LED_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : WARNING_LIGHT_Pin */
+  GPIO_InitStruct.Pin = WARNING_LIGHT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(WARNING_LIGHT_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
